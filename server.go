@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	pb "github.com/opencopilot/haproxy-manager/manager"
 	"go.uber.org/zap"
@@ -64,7 +67,24 @@ func startServer() {
 	}
 }
 
+func stop() {
+	log.Println("Should stop service...")
+}
+
 func main() {
 	log.Println("Starting HAProxy Manager gRPC server")
-	startServer()
+	go startServer()
+
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigs
+		stop()
+		done <- true
+	}()
+
+	<-done
 }

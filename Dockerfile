@@ -18,7 +18,7 @@ RUN mkdir -p /tmp/protoc && \
 
 RUN go get github.com/golang/protobuf/protoc-gen-go
 
-WORKDIR /go/src/manager
+WORKDIR /go/src/github.com/opencopilot/haproxy-manager
 COPY . .
 
 # generate gRPC
