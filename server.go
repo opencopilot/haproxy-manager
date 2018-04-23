@@ -65,5 +65,6 @@ func startServer() {
 }
 
 func main() {
+	log.Println("Starting HAProxy Manager gRPC server")
 	startServer()
 }
