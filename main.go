@@ -14,6 +14,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	dockerClient "github.com/docker/docker/client"
+
 	"github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/grpc-ecosystem/go-grpc-middleware/recovery"
@@ -69,6 +74,61 @@ func startServer() {
 
 func stop() {
 	log.Println("Should stop service...")
+}
+
+func startService() {
+	log.Println("Starting HAProxy")
+	dockerCli, err := dockerClient.NewEnvClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	containerConfig := &container.Config{
+		Image: "haproxy",
+		Labels: map[string]string{
+			"com.opencopilot.service": "haproxy",
+		},
+	}
+
+	res, err := dockerCli.ContainerCreate(ctx, containerConfig, nil, nil, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	reader, err := dockerCli.ImagePull(ctx, containerConfig.Image, dockerTypes.ImagePullOptions{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	reader.Close()
+
+	startErr := dockerCli.ContainerStart(ctx, res.ID, dockerTypes.ContainerStartOptions{})
+	if startErr != nil {
+		log.Fatal(startErr)
+	}
+}
+
+func stopService() {
+	log.Println("Stopping HAProxy")
+	dockerCli, err := dockerClient.NewEnvClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx := context.Background()
+	args := filters.NewArgs(
+		filters.Arg("label", "com.opencopilot.service=haproxy"),
+	)
+	containers, err := dockerCli.ContainerList(context.Background(), dockerTypes.ContainerListOptions{
+		Filters: args,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, container := range containers {
+		dockerCli.ContainerStop(ctx, container.ID, nil)
+	}
 }
 
 func main() {
