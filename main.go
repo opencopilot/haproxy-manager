@@ -2,83 +2,33 @@ package main
 
 import (
 	"context"
+	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
-	pb "github.com/opencopilot/haproxy-manager/manager"
-	"go.uber.org/zap"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
+	"path/filepath"
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
-
-	"github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
-	"github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	"github.com/grpc-ecosystem/go-grpc-middleware/tags"
 )
 
-type server struct{}
-
-func (s *server) GetStatus(ctx context.Context, in *pb.ManagerStatusRequest) (*pb.ManagerStatus, error) {
-	// return the status of the manager - what should this contain?
-	return &pb.ManagerStatus{}, nil
-}
-
-func (s *server) Configure(ctx context.Context, in *pb.ConfigureRequest) (*pb.ManagerStatus, error) {
-	// execute the configuration change on the service (HAProxy)
-	return &pb.ManagerStatus{}, nil
-}
-
-func startServer() {
-	lis, err := net.Listen("tcp", "127.0.0.1:50052")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	logger, err := zap.NewProduction()
-	defer logger.Sync()
-	if err != nil {
-		log.Fatalf("failed to setup logger: %v", err)
-	}
-
-	s := grpc.NewServer(
-		// grpc.Creds(creds),
-		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
-			grpc_ctxtags.StreamServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-			grpc_zap.StreamServerInterceptor(logger),
-			grpc_recovery.StreamServerInterceptor(),
-		)),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-			grpc_zap.UnaryServerInterceptor(logger),
-			grpc_recovery.UnaryServerInterceptor(),
-		)),
-	)
-
-	pb.RegisterManagerServer(s, &server{})
-	// Register reflection service on gRPC server.
-	reflection.Register(s)
-	s.Serve(lis)
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
-}
+var (
+	// ConfigDir is the config directory of opencopilot on the host
+	ConfigDir = os.Getenv("CONFIG_DIR")
+)
 
 func stop() {
 	log.Println("Should stop service...")
+	stopService()
 }
 
 func startService() {
 	log.Println("Starting HAProxy")
-	dockerCli, err := dockerClient.NewEnvClient()
+	dockerCli, err := dockerClient.NewClientWithOpts()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -86,22 +36,32 @@ func startService() {
 	ctx := context.Background()
 
 	containerConfig := &container.Config{
-		Image: "haproxy",
+		Image: "haproxy:latest",
 		Labels: map[string]string{
 			"com.opencopilot.service": "haproxy",
 		},
-	}
-
-	res, err := dockerCli.ContainerCreate(ctx, containerConfig, nil, nil, "")
-	if err != nil {
-		log.Fatal(err)
 	}
 
 	reader, err := dockerCli.ImagePull(ctx, containerConfig.Image, dockerTypes.ImagePullOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	reader.Close()
+	defer reader.Close()
+	if _, err := ioutil.ReadAll(reader); err != nil {
+		log.Panic(err)
+	}
+
+	hostConfig := &container.HostConfig{
+		Binds: []string{
+			filepath.Join(ConfigDir, "/services/LB") + ":/usr/local/etc/haproxy",
+		},
+	}
+	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println(res.ID)
 
 	startErr := dockerCli.ContainerStart(ctx, res.ID, dockerTypes.ContainerStartOptions{})
 	if startErr != nil {
@@ -127,13 +87,31 @@ func stopService() {
 		log.Fatal(err)
 	}
 	for _, container := range containers {
+		log.Printf(container.ID)
 		dockerCli.ContainerStop(ctx, container.ID, nil)
 	}
 }
 
+func ensureConfigDirectory() {
+	if ConfigDir == "" {
+		ConfigDir = "/etc/opencopilot"
+	}
+	confPath := filepath.Join(ConfigDir, "/services/LB")
+	log.Println(confPath)
+	err := os.MkdirAll(confPath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
+	log.Println("Ensuring config directory")
+	ensureConfigDirectory()
+
 	log.Println("Starting HAProxy Manager gRPC server")
 	go startServer()
+
+	startService()
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
