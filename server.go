@@ -31,7 +31,7 @@ func (s *server) Configure(ctx context.Context, in *pb.ConfigureRequest) (*pb.Ma
 }
 
 func startServer() {
-	lis, err := net.Listen("tcp", "127.0.0.1:50052")
+	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
