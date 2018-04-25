@@ -28,4 +28,6 @@ RUN go get -d -v ./...
 RUN go install -v ./...
 RUN go build -o bin/manager
 
-CMD ["bin/manager"]
+EXPOSE 50052
+
+ENTRYPOINT [ "bin/manager" ]

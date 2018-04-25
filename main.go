@@ -52,6 +52,7 @@ func startService() {
 	}
 
 	hostConfig := &container.HostConfig{
+		AutoRemove: true,
 		Binds: []string{
 			filepath.Join(ConfigDir, "/services/LB") + ":/usr/local/etc/haproxy",
 		},
@@ -61,7 +62,7 @@ func startService() {
 		log.Fatal(err)
 	}
 
-	log.Println(res.ID)
+	log.Println(res.ID[:10])
 
 	startErr := dockerCli.ContainerStart(ctx, res.ID, dockerTypes.ContainerStartOptions{})
 	if startErr != nil {
