@@ -21,11 +21,6 @@ var (
 	ConfigDir = os.Getenv("CONFIG_DIR")
 )
 
-func stop() {
-	log.Println("Should stop service...")
-	stopService()
-}
-
 func startService() {
 	log.Println("Starting HAProxy")
 	dockerCli, err := dockerClient.NewClientWithOpts()
@@ -38,7 +33,7 @@ func startService() {
 	containerConfig := &container.Config{
 		Image: "haproxy:latest",
 		Labels: map[string]string{
-			"com.opencopilot.service": "haproxy",
+			"com.opencopilot.service": "LB",
 		},
 	}
 
@@ -56,17 +51,28 @@ func startService() {
 		Binds: []string{
 			filepath.Join(ConfigDir, "/services/LB") + ":/usr/local/etc/haproxy",
 		},
+		PublishAllPorts: true,
 	}
-	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "")
+	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.service.LB")
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
-	log.Println(res.ID[:10])
+	log.Printf("HAProxy container started with ID: %s\n", res.ID[:10])
 
 	startErr := dockerCli.ContainerStart(ctx, res.ID, dockerTypes.ContainerStartOptions{})
 	if startErr != nil {
 		log.Fatal(startErr)
+	}
+
+	statusCh, errCh := dockerCli.ContainerWait(ctx, res.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			log.Fatal(err)
+		}
+	case status := <-statusCh:
+		log.Printf("Status: %v", status.StatusCode)
 	}
 }
 
@@ -79,17 +85,19 @@ func stopService() {
 
 	ctx := context.Background()
 	args := filters.NewArgs(
-		filters.Arg("label", "com.opencopilot.service=haproxy"),
+		filters.Arg("label", "com.opencopilot.service=LB"),
+		filters.Arg("name", "com.opencopilot.service.LB"),
 	)
 	containers, err := dockerCli.ContainerList(context.Background(), dockerTypes.ContainerListOptions{
 		Filters: args,
 	})
 	if err != nil {
 		log.Fatal(err)
+
 	}
 	for _, container := range containers {
-		log.Printf(container.ID)
 		dockerCli.ContainerStop(ctx, container.ID, nil)
+		log.Printf("Stopping container with ID: %s\n", container.ID[:10])
 	}
 }
 
@@ -105,6 +113,17 @@ func ensureConfigDirectory() {
 	}
 }
 
+func ensureService(quit chan struct{}) {
+	for {
+		select {
+		case <-quit:
+			return
+		default:
+			startService()
+		}
+	}
+}
+
 func main() {
 	log.Println("Ensuring config directory")
 	ensureConfigDirectory()
@@ -112,17 +131,21 @@ func main() {
 	log.Println("Starting HAProxy Manager gRPC server")
 	go startServer()
 
-	startService()
-
 	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
+	done := make(chan struct{})
+	stopEnsuringService := make(chan struct{}, 1)
+
+	log.Println("Ensuring the HAProxy is running...")
+	go ensureService(stopEnsuringService)
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-sigs
-		stop()
-		done <- true
+		log.Println("Received shutdown signal")
+		stopEnsuringService <- struct{}{}
+		stopService()
+		done <- struct{}{}
 	}()
 
 	<-done
