@@ -132,7 +132,6 @@ func main() {
 	go startServer()
 
 	sigs := make(chan os.Signal, 1)
-	done := make(chan struct{})
 	stopEnsuringService := make(chan struct{}, 1)
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -142,7 +141,6 @@ func main() {
 		log.Println("received shutdown signal")
 		stopEnsuringService <- struct{}{}
 		stopService()
-		done <- struct{}{}
 	}()
 
 	log.Println("ensuring the HAProxy is running...")
