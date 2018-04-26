@@ -161,6 +161,8 @@ func configureService(configString string) {
 	}
 	w.Flush()
 
+	log.Println(config)
+
 	dockerCli, err := dockerClient.NewEnvClient()
 	if err != nil {
 		log.Fatal(err)
