@@ -88,7 +88,7 @@ func stopService() {
 		filters.Arg("label", "com.opencopilot.service=LB"),
 		filters.Arg("name", "com.opencopilot.service.LB"),
 	)
-	containers, err := dockerCli.ContainerList(context.Background(), dockerTypes.ContainerListOptions{
+	containers, err := dockerCli.ContainerList(ctx, dockerTypes.ContainerListOptions{
 		Filters: args,
 	})
 	if err != nil {
