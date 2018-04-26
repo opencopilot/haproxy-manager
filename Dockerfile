@@ -24,8 +24,16 @@ COPY . .
 # generate gRPC
 RUN protoc -I ./manager ./manager/Manager.proto --go_out=plugins=grpc:./manager
 
-RUN go get -d -v ./...
-RUN go install -v ./...
+# RUN go get -d -v ./...
+# RUN go install -v ./...
+
+# https://github.com/moby/moby/issues/28269#issuecomment-382149133
+RUN go get github.com/docker/docker/client
+RUN rm -rf /go/src/github.com/docker/docker/vendor/github.com/docker/go-connections
+RUN go get github.com/docker/go-connections/nat
+RUN go get github.com/pkg/errors
+RUN go get -v
+
 RUN go build -o bin/manager
 
 EXPOSE 50052
