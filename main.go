@@ -22,7 +22,7 @@ var (
 )
 
 func startService() {
-	log.Println("Starting HAProxy")
+	log.Println("starting HAProxy")
 	dockerCli, err := dockerClient.NewClientWithOpts()
 	if err != nil {
 		log.Fatal(err)
@@ -72,12 +72,12 @@ func startService() {
 			log.Fatal(err)
 		}
 	case status := <-statusCh:
-		log.Printf("Status: %v", status.StatusCode)
+		log.Printf("status: %v", status.StatusCode)
 	}
 }
 
 func stopService() {
-	log.Println("Stopping HAProxy")
+	log.Println("stopping HAProxy")
 	dockerCli, err := dockerClient.NewEnvClient()
 	if err != nil {
 		log.Fatal(err)
@@ -97,7 +97,7 @@ func stopService() {
 	}
 	for _, container := range containers {
 		dockerCli.ContainerStop(ctx, container.ID, nil)
-		log.Printf("Stopping container with ID: %s\n", container.ID[:10])
+		log.Printf("stopping container with ID: %s\n", container.ID[:10])
 	}
 }
 
@@ -125,28 +125,26 @@ func ensureService(quit chan struct{}) {
 }
 
 func main() {
-	log.Println("Ensuring config directory")
+	log.Println("ensuring config directory")
 	ensureConfigDirectory()
 
-	log.Println("Starting HAProxy Manager gRPC server")
+	log.Println("starting HAProxy Manager gRPC server")
 	go startServer()
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan struct{})
 	stopEnsuringService := make(chan struct{}, 1)
 
-	log.Println("Ensuring the HAProxy is running...")
-	go ensureService(stopEnsuringService)
-
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-sigs
-		log.Println("Received shutdown signal")
+		log.Println("received shutdown signal")
 		stopEnsuringService <- struct{}{}
 		stopService()
 		done <- struct{}{}
 	}()
 
-	<-done
+	log.Println("ensuring the HAProxy is running...")
+	ensureService(stopEnsuringService)
 }
