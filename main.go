@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"os"
@@ -14,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
+	nat "github.com/docker/go-connections/nat"
 )
 
 var (
@@ -34,6 +38,9 @@ func startService() {
 		Image: "haproxy:latest",
 		Labels: map[string]string{
 			"com.opencopilot.service": "LB",
+		},
+		ExposedPorts: nat.PortSet{
+			"80/tcp": struct{}{},
 		},
 	}
 
@@ -106,7 +113,7 @@ func ensureConfigDirectory() {
 		ConfigDir = "/etc/opencopilot"
 	}
 	confPath := filepath.Join(ConfigDir, "/services/LB")
-	log.Println(confPath)
+	log.Printf("ensuring the configuration path exists: %s", confPath)
 	err := os.MkdirAll(confPath, os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
@@ -121,6 +128,58 @@ func ensureService(quit chan struct{}) {
 		default:
 			startService()
 		}
+	}
+}
+
+func configureService(configString string) {
+	log.Println(configString)
+
+	config := make(map[string]interface{})
+	err := json.Unmarshal([]byte(configString), &config)
+	if err != nil {
+		log.Println(err)
+	}
+
+	t, err := ioutil.ReadFile("./haproxy.template.cfg")
+	if err != nil {
+		log.Println(err)
+	}
+	tmpl, err := template.New("config").Parse(string(t))
+	if err != nil {
+		log.Println(err)
+	}
+
+	f, err := os.Create(filepath.Join(ConfigDir, "/services/LB/haproxy.cfg"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	errT := tmpl.Execute(w, config)
+	if errT != nil {
+		log.Println(errT)
+	}
+	w.Flush()
+
+	dockerCli, err := dockerClient.NewEnvClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx := context.Background()
+	args := filters.NewArgs(
+		filters.Arg("label", "com.opencopilot.service=LB"),
+		filters.Arg("name", "com.opencopilot.service.LB"),
+	)
+	containers, err := dockerCli.ContainerList(ctx, dockerTypes.ContainerListOptions{
+		Filters: args,
+	})
+	if err != nil {
+		log.Fatal(err)
+
+	}
+	for _, container := range containers {
+		dockerCli.ContainerKill(ctx, container.ID, "SIGHUP")
 	}
 }
 

@@ -26,7 +26,7 @@ func (s *server) GetStatus(ctx context.Context, in *pb.ManagerStatusRequest) (*p
 
 func (s *server) Configure(ctx context.Context, in *pb.ConfigureRequest) (*pb.ManagerStatus, error) {
 	// execute the configuration change on the service (HAProxy)
-	log.Println("Configure request received!")
+	configureService(in.Config)
 	return &pb.ManagerStatus{}, nil
 }
 
