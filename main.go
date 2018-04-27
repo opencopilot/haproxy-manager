@@ -25,6 +25,8 @@ import (
 var (
 	// ConfigDir is the config directory of opencopilot on the host
 	ConfigDir = os.Getenv("CONFIG_DIR")
+	// InstanceID is the instance id of this device
+	InstanceID = os.Getenv("INSTANCE_ID")
 )
 
 func startService() {
@@ -142,7 +144,7 @@ func configureService(configString string) {
 		log.Println(err)
 	}
 
-	lbConfig, dataType, _, err := jsonparser.Get([]byte(configString), "services", "LB")
+	lbConfig, dataType, _, err := jsonparser.Get([]byte(configString), "instances", InstanceID, "services", "LB")
 	if err != nil {
 		log.Println(err)
 	}
