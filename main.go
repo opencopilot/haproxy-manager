@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"html/template"
 	"io/ioutil"
@@ -147,20 +149,40 @@ func configureService(configString string) {
 		log.Print(err)
 	}
 
-	f, err := os.Create(filepath.Join(ConfigDir, "/services/LB/haproxy.cfg"))
+	configPath := filepath.Join(ConfigDir, "/services/LB/haproxy.cfg")
+
+	prevConfig, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+	oldHash := md5.Sum(prevConfig)
 
-	w := bufio.NewWriter(f)
-	errT := t.Execute(w, config)
+	var newConfig bytes.Buffer
+	errT := t.Execute(&newConfig, config)
 	if errT != nil {
 		log.Println(errT)
 	}
+	newHash := md5.Sum([]byte(newConfig.String()))
+
+	log.Printf("hashes: %x, %x", oldHash, newHash)
+	log.Println(bytes.Compare(oldHash[:], newHash[:]))
+	log.Println(config)
+
+	if bytes.Compare(oldHash[:], newHash[:]) == 0 {
+		return
+	}
+
+	f, err := os.Create(configPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	w := bufio.NewWriter(f)
+	err = t.Execute(w, config)
+	if err != nil {
+		log.Println(err)
+	}
 	w.Flush()
 	f.Close()
-
-	log.Println(config)
 
 	dockerCli, err := dockerClient.NewEnvClient()
 	if err != nil {
