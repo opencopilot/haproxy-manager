@@ -140,26 +140,23 @@ func configureService(configString string) {
 		log.Println(err)
 	}
 
-	t, err := ioutil.ReadFile("./haproxy.template.cfg")
+	t, err := template.ParseFiles("./haproxy.template.cfg")
 	if err != nil {
-		log.Println(err)
-	}
-	tmpl, err := template.New("config").Parse(string(t))
-	if err != nil {
-		log.Println(err)
+		log.Print(err)
 	}
 
 	f, err := os.Create(filepath.Join(ConfigDir, "/services/LB/haproxy.cfg"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer f.Close()
+
 	w := bufio.NewWriter(f)
-	errT := tmpl.Execute(w, config)
+	errT := t.Execute(w, config)
 	if errT != nil {
 		log.Println(errT)
 	}
 	w.Flush()
+	f.Close()
 
 	log.Println(config)
 
