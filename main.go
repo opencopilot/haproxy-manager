@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -14,7 +13,6 @@ import (
 
 	"path/filepath"
 
-	"github.com/buger/jsonparser"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -144,14 +142,6 @@ func configureService(configString string) {
 		log.Println(err)
 	}
 
-	lbConfig, dataType, _, err := jsonparser.Get([]byte(configString), "instances", InstanceID, "services", "LB")
-	if err != nil {
-		log.Println(err)
-	}
-	if dataType == jsonparser.NotExist {
-		log.Println(errors.New("Invalid JSON"))
-	}
-
 	t, err := template.ParseFiles("./haproxy.template.cfg")
 	if err != nil {
 		log.Print(err)
@@ -163,14 +153,14 @@ func configureService(configString string) {
 	}
 
 	w := bufio.NewWriter(f)
-	errT := t.Execute(w, lbConfig)
+	errT := t.Execute(w, config)
 	if errT != nil {
 		log.Println(errT)
 	}
 	w.Flush()
 	f.Close()
 
-	log.Println(lbConfig)
+	log.Println(config)
 
 	dockerCli, err := dockerClient.NewEnvClient()
 	if err != nil {
