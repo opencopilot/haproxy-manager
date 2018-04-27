@@ -164,10 +164,6 @@ func configureService(configString string) {
 	}
 	newHash := md5.Sum([]byte(newConfig.String()))
 
-	log.Printf("hashes: %x, %x", oldHash, newHash)
-	log.Println(bytes.Compare(oldHash[:], newHash[:]))
-	log.Println(config)
-
 	if bytes.Compare(oldHash[:], newHash[:]) == 0 {
 		return
 	}
