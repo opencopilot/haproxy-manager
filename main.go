@@ -136,7 +136,7 @@ func configureService(dockerCli *dockerClient.Client, configString string) {
 		return
 	}
 
-	// Execute the new tempalte config and write to file
+	// Execute the new template config and write to file
 	f, err := os.Create(configPath)
 	if err != nil {
 		log.Fatal(err)
