@@ -11,13 +11,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	dockerClient "github.com/docker/docker/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/grpc-ecosystem/go-grpc-middleware/tags"
 )
 
-type server struct{}
+type server struct {
+	dockerCli *dockerClient.Client
+}
 
 func (s *server) GetStatus(ctx context.Context, in *pb.ManagerStatusRequest) (*pb.ManagerStatus, error) {
 	// return the status of the manager - what should this contain?
@@ -26,11 +29,11 @@ func (s *server) GetStatus(ctx context.Context, in *pb.ManagerStatusRequest) (*p
 
 func (s *server) Configure(ctx context.Context, in *pb.ConfigureRequest) (*pb.ManagerStatus, error) {
 	// execute the configuration change on the service (HAProxy)
-	configureService(in.Config)
+	configureService(s.dockerCli, in.Config)
 	return &pb.ManagerStatus{}, nil
 }
 
-func startServer() {
+func startServer(dockerCli *dockerClient.Client) {
 	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -56,7 +59,9 @@ func startServer() {
 		)),
 	)
 
-	pb.RegisterManagerServer(s, &server{})
+	pb.RegisterManagerServer(s, &server{
+		dockerCli: dockerCli,
+	})
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
 	s.Serve(lis)

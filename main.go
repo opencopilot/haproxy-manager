@@ -29,12 +29,8 @@ var (
 	InstanceID = os.Getenv("INSTANCE_ID")
 )
 
-func startService() {
+func startService(dockerCli *dockerClient.Client) {
 	log.Println("starting HAProxy")
-	dockerCli, err := dockerClient.NewClientWithOpts()
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	ctx := context.Background()
 
@@ -87,12 +83,8 @@ func startService() {
 	}
 }
 
-func stopService() {
+func stopService(dockerCli *dockerClient.Client) {
 	log.Println("stopping HAProxy")
-	dockerCli, err := dockerClient.NewEnvClient()
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	ctx := context.Background()
 	args := filters.NewArgs(
@@ -112,32 +104,7 @@ func stopService() {
 	}
 }
 
-func ensureConfigDirectory() {
-	if ConfigDir == "" {
-		ConfigDir = "/etc/opencopilot"
-	}
-	confPath := filepath.Join(ConfigDir, "/services/LB")
-	log.Printf("ensuring the configuration path exists: %s", confPath)
-	err := os.MkdirAll(confPath, os.ModePerm)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func ensureService(quit chan struct{}) {
-	for {
-		select {
-		case <-quit:
-			return
-		default:
-			startService()
-		}
-	}
-}
-
-func configureService(configString string) {
-	log.Println(configString)
-
+func configureService(dockerCli *dockerClient.Client, configString string) {
 	config := make(map[string]interface{})
 	err := json.Unmarshal([]byte(configString), &config)
 	if err != nil {
@@ -164,14 +131,17 @@ func configureService(configString string) {
 	}
 	newHash := md5.Sum([]byte(newConfig.String()))
 
+	// Compare md5 hashes of old and new config, if they match just return
 	if bytes.Compare(oldHash[:], newHash[:]) == 0 {
 		return
 	}
 
+	// Execute the new tempalte config and write to file
 	f, err := os.Create(configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	w := bufio.NewWriter(f)
 	err = t.Execute(w, config)
 	if err != nil {
@@ -180,11 +150,7 @@ func configureService(configString string) {
 	w.Flush()
 	f.Close()
 
-	dockerCli, err := dockerClient.NewEnvClient()
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	// Go find the docker container running the service and send a SIGHUB to have it reload the config
 	ctx := context.Background()
 	args := filters.NewArgs(
 		filters.Arg("label", "com.opencopilot.service=LB"),
@@ -202,12 +168,40 @@ func configureService(configString string) {
 	}
 }
 
+func ensureService(dockerCli *dockerClient.Client, quit chan struct{}) {
+	for {
+		select {
+		case <-quit:
+			return
+		default:
+			startService(dockerCli)
+		}
+	}
+}
+
+func ensureConfigDirectory() {
+	if ConfigDir == "" {
+		ConfigDir = "/etc/opencopilot"
+	}
+	confPath := filepath.Join(ConfigDir, "/services/LB")
+	log.Printf("ensuring the configuration path exists: %s", confPath)
+	err := os.MkdirAll(confPath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	log.Println("ensuring config directory")
 	ensureConfigDirectory()
 
+	dockerCli, err := dockerClient.NewClientWithOpts()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Println("starting HAProxy Manager gRPC server")
-	go startServer()
+	go startServer(dockerCli)
 
 	sigs := make(chan os.Signal, 1)
 	stopEnsuringService := make(chan struct{}, 1)
@@ -218,9 +212,9 @@ func main() {
 		<-sigs
 		log.Println("received shutdown signal")
 		stopEnsuringService <- struct{}{}
-		stopService()
+		stopService(dockerCli)
 	}()
 
-	log.Println("ensuring the HAProxy is running...")
-	ensureService(stopEnsuringService)
+	log.Println("ensuring that HAProxy is running...")
+	ensureService(dockerCli, stopEnsuringService)
 }
