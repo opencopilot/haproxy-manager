@@ -1,12 +1,7 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"crypto/md5"
-	"encoding/json"
-	"html/template"
 	"io/ioutil"
 	"log"
 	"os"
@@ -18,8 +13,10 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/strslice"
 	dockerClient "github.com/docker/docker/client"
-	nat "github.com/docker/go-connections/nat"
+	"github.com/docker/go-connections/nat"
+	"github.com/fsnotify/fsnotify"
 )
 
 var (
@@ -105,52 +102,8 @@ func stopService(dockerCli *dockerClient.Client) {
 }
 
 func configureService(dockerCli *dockerClient.Client, configString string) {
-	config := make(map[string]interface{})
-	err := json.Unmarshal([]byte(configString), &config)
-	if err != nil {
-		log.Println(err)
-	}
-
-	t, err := template.ParseFiles("./haproxy.template.cfg")
-	if err != nil {
-		log.Print(err)
-	}
-
-	configPath := filepath.Join(ConfigDir, "/services/LB/haproxy.cfg")
-
-	prevConfig, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	oldHash := md5.Sum(prevConfig)
-
-	var newConfig bytes.Buffer
-	errT := t.Execute(&newConfig, config)
-	if errT != nil {
-		log.Println(errT)
-	}
-	newHash := md5.Sum([]byte(newConfig.String()))
-
-	// Compare md5 hashes of old and new config, if they match just return
-	if bytes.Compare(oldHash[:], newHash[:]) == 0 {
-		return
-	}
-
-	// Execute the new template config and write to file
-	f, err := os.Create(configPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	w := bufio.NewWriter(f)
-	err = t.Execute(w, config)
-	if err != nil {
-		log.Println(err)
-	}
-	w.Flush()
-	f.Close()
-
-	// Go find the docker container running the service and send a SIGHUB to have it reload the config
+	log.Println("configuring LB")
+	// Go find the docker container running the service and send a SIGHUP to have it reload the config
 	ctx := context.Background()
 	args := filters.NewArgs(
 		filters.Arg("label", "com.opencopilot.service=LB"),
@@ -191,6 +144,126 @@ func ensureConfigDirectory() {
 	}
 }
 
+func startConsulTemplate(dockerCli *dockerClient.Client) {
+	ctx := context.Background()
+
+	LBConfDir := filepath.Join(ConfigDir, "/services/LB")
+
+	containerConfig := &container.Config{
+		Image: "hashicorp/consul-template",
+		Labels: map[string]string{
+			"com.opencopilot.consul-template": "LB",
+		},
+		Cmd: strslice.StrSlice{
+			"-template",
+			filepath.Join(LBConfDir, "haproxy.ctmpl") + ":" + filepath.Join(LBConfDir, "haproxy.cfg"),
+			"-consul-addr",
+			"host.docker.internal:8500",
+		},
+	}
+
+	reader, err := dockerCli.ImagePull(ctx, containerConfig.Image, dockerTypes.ImagePullOptions{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer reader.Close()
+	if _, err := ioutil.ReadAll(reader); err != nil {
+		log.Panic(err)
+	}
+
+	hostConfig := &container.HostConfig{
+		AutoRemove: true,
+		Binds: []string{
+			LBConfDir + ":" + LBConfDir,
+		},
+		NetworkMode: "host",
+	}
+	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.consul-template.LB")
+	if err != nil {
+		log.Println(err)
+	}
+
+	startErr := dockerCli.ContainerStart(ctx, res.ID, dockerTypes.ContainerStartOptions{})
+	if startErr != nil {
+		log.Fatal(startErr)
+	}
+
+	log.Printf("consul-template container started with ID: %s\n", res.ID[:10])
+
+	statusCh, errCh := dockerCli.ContainerWait(ctx, res.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			log.Fatal(err)
+		}
+	case status := <-statusCh:
+		log.Printf("status: %v", status.StatusCode)
+	}
+}
+
+func ensureConsulTemplate(dockerCli *dockerClient.Client, quit chan struct{}) {
+	for {
+		select {
+		case <-quit:
+			return
+		default:
+			startConsulTemplate(dockerCli)
+		}
+	}
+}
+
+func stopConsulTemplate(dockerCli *dockerClient.Client) {
+	log.Println("stopping consul-template")
+
+	ctx := context.Background()
+	args := filters.NewArgs(
+		filters.Arg("label", "com.opencopilot.consul-template=LB"),
+		filters.Arg("name", "com.opencopilot.consul-template.LB"),
+	)
+	containers, err := dockerCli.ContainerList(ctx, dockerTypes.ContainerListOptions{
+		Filters: args,
+	})
+	if err != nil {
+		log.Fatal(err)
+
+	}
+	for _, container := range containers {
+		dockerCli.ContainerStop(ctx, container.ID, nil)
+		log.Printf("stopping container with ID: %s\n", container.ID[:10])
+	}
+}
+
+func watchConfigFile(dockerClient *dockerClient.Client) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case event := <-watcher.Events:
+				log.Println("event:", event)
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					log.Println("modified file:", event.Name)
+				}
+				if event.Op&fsnotify.Chmod == fsnotify.Chmod {
+					configureService(dockerClient, "")
+				}
+			case err := <-watcher.Errors:
+				log.Println("error:", err)
+			}
+		}
+	}()
+	err = watcher.Add(filepath.Join(ConfigDir, "/services/LB/haproxy.cfg"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	<-done
+}
+
 func main() {
 	log.Println("ensuring config directory")
 	ensureConfigDirectory()
@@ -205,15 +278,23 @@ func main() {
 
 	sigs := make(chan os.Signal, 1)
 	stopEnsuringService := make(chan struct{}, 1)
+	stopEnsuringConsulTemplate := make(chan struct{}, 1)
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-sigs
 		log.Println("received shutdown signal")
+		stopEnsuringConsulTemplate <- struct{}{}
+		stopConsulTemplate(dockerCli)
 		stopEnsuringService <- struct{}{}
 		stopService(dockerCli)
 	}()
+
+	go watchConfigFile(dockerCli)
+
+	log.Println("starting consul-template")
+	go ensureConsulTemplate(dockerCli, stopEnsuringConsulTemplate)
 
 	log.Println("ensuring that HAProxy is running...")
 	ensureService(dockerCli, stopEnsuringService)
