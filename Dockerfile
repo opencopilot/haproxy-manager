@@ -34,8 +34,7 @@ RUN go get github.com/docker/go-connections/nat
 RUN go get github.com/pkg/errors
 RUN go get -v
 
-RUN go build -o bin/manager
-
+RUN go build -o cmd/manager
 EXPOSE 50052
 
-ENTRYPOINT [ "bin/manager" ]
+ENTRYPOINT [ "cmd/manager" ]
