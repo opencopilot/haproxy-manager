@@ -1,0 +1,13 @@
+global
+    daemon
+    maxconn {{key (print "instances/" (env "INSTANCE_ID") "/services/LB/maxconn")}}
+
+defaults
+    mode http
+    timeout connect 5000ms
+    timeout client 50000ms
+    timeout server 50000ms
+
+listen http-in
+    bind *:80{{range (ls (print "instances/" (env "INSTANCE_ID") "/services/LB/backends"))}}
+    server {{.Key}} 127.0.0.1:80 redir {{.Value}}{{end}}

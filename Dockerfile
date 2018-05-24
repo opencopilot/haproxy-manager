@@ -24,8 +24,6 @@ COPY . .
 # generate gRPC
 RUN protoc -I ./manager ./manager/Manager.proto --go_out=plugins=grpc:./manager
 
-# RUN go get -d -v ./...
-# RUN go install -v ./...
 
 # https://github.com/moby/moby/issues/28269#issuecomment-382149133
 RUN go get github.com/docker/docker/client

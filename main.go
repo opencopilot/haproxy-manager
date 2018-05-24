@@ -34,6 +34,26 @@ func ensureConfigDirectory() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	configFilePath := filepath.Join(ConfigDir, "/services/LB/haproxy.cfg")
+
+	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+		err = os.Link("./haproxy.cfg", configFilePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	err = os.Remove(filepath.Join(ConfigDir, "/services/LB/haproxy.ctmpl"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = os.Link("./haproxy.ctmpl", filepath.Join(ConfigDir, "/services/LB/haproxy.ctmpl"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }
 
 func isContainerRunning(dockerCli *dockerClient.Client, containerName string) (bool, *string, error) {
