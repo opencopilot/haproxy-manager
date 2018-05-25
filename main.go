@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -24,6 +25,27 @@ var (
 	ConsulAddr = os.Getenv("CONSUL_ADDR")
 )
 
+func copyFile(src, dest string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func ensureConfigDirectory() {
 	if ConfigDir == "" {
 		ConfigDir = "/etc/opencopilot"
@@ -39,7 +61,7 @@ func ensureConfigDirectory() {
 	configTemplateFilePath := filepath.Join(ConfigDir, "/services/LB/haproxy.ctmpl")
 
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) { // if config doesn't exist, add the default
-		err = os.Link("./haproxy.cfg", configFilePath)
+		err := copyFile("./haproxy.cfg", configFilePath)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -52,7 +74,7 @@ func ensureConfigDirectory() {
 		}
 	}
 
-	err = os.Link("./haproxy.ctmpl", configTemplateFilePath)
+	err = copyFile("./haproxy.ctmpl", configTemplateFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
