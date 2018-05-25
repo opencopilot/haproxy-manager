@@ -36,20 +36,23 @@ func ensureConfigDirectory() {
 	}
 
 	configFilePath := filepath.Join(ConfigDir, "/services/LB/haproxy.cfg")
+	configTemplateFilePath := filepath.Join(ConfigDir, "/services/LB/haproxy.ctmpl")
 
-	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+	if _, err := os.Stat(configFilePath); os.IsNotExist(err) { // if config doesn't exist, add the default
 		err = os.Link("./haproxy.cfg", configFilePath)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	err = os.Remove(filepath.Join(ConfigDir, "/services/LB/haproxy.ctmpl"))
-	if err != nil {
-		log.Fatal(err)
+	if _, err := os.Stat(configTemplateFilePath); err == nil { // if config template exists, remove it
+		err = os.Remove(configTemplateFilePath)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	err = os.Link("./haproxy.ctmpl", filepath.Join(ConfigDir, "/services/LB/haproxy.ctmpl"))
+	err = os.Link("./haproxy.ctmpl", configTemplateFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -92,6 +95,10 @@ func main() {
 	dockerCli, err := dockerClient.NewClientWithOpts()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if ConsulAddr == "" {
+		ConsulAddr = "localhost:8500"
 	}
 
 	sigs := make(chan os.Signal, 1)

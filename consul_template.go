@@ -79,9 +79,9 @@ func startConsulTemplate(dockerCli *dockerClient.Client) {
 		log.Println(err)
 	}
 
-	startErr := dockerCli.ContainerStart(ctx, res.ID, dockerTypes.ContainerStartOptions{})
-	if startErr != nil {
-		log.Fatal(startErr)
+	err = dockerCli.ContainerStart(ctx, res.ID, dockerTypes.ContainerStartOptions{})
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	log.Printf("consul-template container started with ID: %s\n", res.ID[:10])
