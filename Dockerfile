@@ -35,8 +35,6 @@ RUN dep ensure -vendor-only -v
 # RUN go get github.com/pkg/errors
 # RUN go get -v
 
-RUN dep ensure
-
 RUN go build -o cmd/manager
 EXPOSE 50052
 
