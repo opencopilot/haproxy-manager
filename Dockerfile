@@ -40,6 +40,4 @@ RUN dep ensure
 RUN go build -o cmd/manager
 EXPOSE 50052
 
-ENV DOCKER_API_VERSION 1.37
-
 ENTRYPOINT [ "cmd/manager" ]
