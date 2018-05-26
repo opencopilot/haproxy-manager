@@ -114,7 +114,7 @@ func main() {
 	log.Println("ensuring config directory")
 	ensureConfigDirectory()
 
-	dockerCli, err := dockerClient.NewClientWithOpts()
+	dockerCli, err := dockerClient.NewClientWithOpts(dockerClient.WithVersion("1.37"))
 	if err != nil {
 		log.Fatal(err)
 	}
