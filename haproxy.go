@@ -65,10 +65,8 @@ func startService(dockerCli *dockerClient.Client) {
 			filepath.Join(ConfigDir, "/services/LB") + ":/usr/local/etc/haproxy",
 		},
 		PortBindings: nat.PortMap{
-			[]nat.PortMap{
-				"80/tcp": []nat.PortBinding{
-					{HostIP: "0.0.0.0", HostPort: "80"}
-				}
+			"80/tcp": []nat.PortBinding{
+				{HostIP: "0.0.0.0", HostPort: "80"},
 			},
 		},
 	}
