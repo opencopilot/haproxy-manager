@@ -101,6 +101,7 @@ func stopService(dockerCli *dockerClient.Client) {
 
 	}
 	for _, container := range containers {
+		dockerCli.ContainerKill(ctx, container.ID, "SIGTERM")
 		dockerCli.ContainerStop(ctx, container.ID, nil)
 		log.Printf("removing container with ID: %s\n", container.ID[:10])
 	}
