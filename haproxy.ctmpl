@@ -19,3 +19,10 @@ backend backends
     balance roundrobin
     {{range (ls (print "instances/" (env "INSTANCE_ID") "/services/LB/backends"))}}
     server {{.Key}} {{.Value}}:80 check{{end}}
+
+    stats enable
+    stats hide-version
+    stats refresh 30s
+    stats show-node
+    stats auth admin:password
+    stats uri  /haproxy?stats
