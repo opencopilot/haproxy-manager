@@ -106,7 +106,7 @@ func stopConsulTemplate(dockerCli *dockerClient.Client) {
 	}
 	for _, container := range containers {
 		dockerCli.ContainerKill(ctx, container.ID, "SIGTERM")
-		dockerCli.ContainerStop(ctx, container.ID, nil)
+		// dockerCli.ContainerStop(ctx, container.ID, nil)
 		log.Printf("stopping container with ID: %s\n", container.ID[:10])
 	}
 }
