@@ -64,7 +64,13 @@ func startService(dockerCli *dockerClient.Client) {
 		Binds: []string{
 			filepath.Join(ConfigDir, "/services/LB") + ":/usr/local/etc/haproxy",
 		},
-		NetworkMode: "host",
+		PortBindings: nat.PortMap{
+			[]nat.PortMap{
+				"80/tcp": []nat.PortBinding{
+					{HostIP: "0.0.0.0", HostPort: "80"}
+				}
+			},
+		},
 	}
 	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.service.LB")
 	if err != nil {
