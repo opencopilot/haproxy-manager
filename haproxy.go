@@ -11,7 +11,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 )
 
 func ensureService(dockerCli *dockerClient.Client, quit chan struct{}) {
@@ -44,9 +43,9 @@ func startService(dockerCli *dockerClient.Client) {
 		Labels: map[string]string{
 			"com.opencopilot.service": "LB",
 		},
-		ExposedPorts: nat.PortSet{
-			"80/tcp": struct{}{},
-		},
+		// ExposedPorts: nat.PortSet{
+		// 	"80/tcp": struct{}{},
+		// },
 	}
 
 	reader, err := dockerCli.ImagePull(ctx, containerConfig.Image, dockerTypes.ImagePullOptions{})
@@ -64,7 +63,7 @@ func startService(dockerCli *dockerClient.Client) {
 		Binds: []string{
 			filepath.Join(ConfigDir, "/services/LB") + ":/usr/local/etc/haproxy",
 		},
-		PublishAllPorts: true,
+		NetworkMode: "host",
 	}
 	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.service.LB")
 	if err != nil {

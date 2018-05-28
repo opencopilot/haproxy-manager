@@ -4,11 +4,18 @@ global
 
 defaults
     mode http
+    option httplog
     timeout connect 5000ms
     timeout client 50000ms
     timeout server 50000ms
 
-listen http-in
+frontend www
+    bind *:80
+    mode http
+    default_backend backends
+
+backend backends
+    mode http
     balance roundrobin
-    bind *:80{{range (ls (print "instances/" (env "INSTANCE_ID") "/services/LB/backends"))}}
-    server {{.Key}} 127.0.0.1:80 redir {{.Value}}{{end}}
+    {{range (ls (print "instances/" (env "INSTANCE_ID") "/services/LB/backends"))}}
+    server {{.Key}} {{.Value}}:80 check{{end}}
