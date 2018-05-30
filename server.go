@@ -29,7 +29,7 @@ func (s *server) GetStatus(ctx context.Context, in *pb.ManagerStatusRequest) (*p
 
 func (s *server) Configure(ctx context.Context, in *pb.ConfigureRequest) (*pb.ManagerStatus, error) {
 	// execute the configuration change on the service (HAProxy)
-	configureService(s.dockerCli, in.Config)
+	// configureService(s.dockerCli, in.Config)
 	return &pb.ManagerStatus{}, nil
 }
 
