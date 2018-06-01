@@ -26,14 +26,14 @@ func watchConfigFile(dockerClient *dockerClient.Client) {
 					log.Println("modified file:", event.Name)
 				}
 				if event.Op&fsnotify.Chmod == fsnotify.Chmod {
-					configureService(dockerClient, "")
+					configureService(dockerClient)
 				}
 			case err := <-watcher.Errors:
 				log.Println("error:", err)
 			}
 		}
 	}()
-	err = watcher.Add(filepath.Join(ConfigDir, "/services/LB/haproxy.cfg"))
+	err = watcher.Add(filepath.Join(ConfigDir, "/services/", ServiceName, "/haproxy.cfg"))
 	if err != nil {
 		log.Fatal(err)
 	}

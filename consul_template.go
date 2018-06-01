@@ -26,24 +26,23 @@ func ensureConsulTemplate(dockerCli *dockerClient.Client, quit chan struct{}) {
 }
 
 func startConsulTemplate(dockerCli *dockerClient.Client) {
-	alreadyRunning, containerID, err := isContainerRunning(dockerCli, "com.opencopilot.consul-template.LB")
+	alreadyRunning, _, err := isContainerRunning(dockerCli, "com.opencopilot.consul-template."+ServiceName)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if alreadyRunning {
-		log.Println("consul-template already running")
-		waitForContainerStop(dockerCli, *containerID)
-		return
+		log.Println("consul-template already running, stopping")
+		startConsulTemplate(dockerCli)
 	}
 
 	ctx := context.Background()
 
-	LBConfDir := filepath.Join(ConfigDir, "/services/LB")
+	ConfDir := filepath.Join(ConfigDir, "/services/", ServiceName)
 
 	containerConfig := &container.Config{
-		Image: "hashicorp/consul-template",
+		Image: "hashicorp/consul-template:0.19.4-alpine",
 		Labels: map[string]string{
-			"com.opencopilot.consul-template": "LB",
+			"com.opencopilot.service." + ServiceName: "consul-template",
 		},
 		Env: []string{
 			"CONFIG_DIR=" + ConfigDir,
@@ -52,7 +51,7 @@ func startConsulTemplate(dockerCli *dockerClient.Client) {
 		},
 		Cmd: strslice.StrSlice{
 			"-template",
-			filepath.Join(LBConfDir, "haproxy.ctmpl") + ":" + filepath.Join(LBConfDir, "haproxy.cfg"),
+			filepath.Join(ConfDir, "haproxy.ctmpl") + ":" + filepath.Join(ConfDir, "haproxy.cfg"),
 			"-consul-addr",
 			ConsulAddr,
 		},
@@ -70,11 +69,11 @@ func startConsulTemplate(dockerCli *dockerClient.Client) {
 	hostConfig := &container.HostConfig{
 		AutoRemove: true,
 		Binds: []string{
-			LBConfDir + ":" + LBConfDir,
+			ConfDir + ":" + ConfDir,
 		},
 		NetworkMode: "host",
 	}
-	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.consul-template.LB")
+	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.consul-template."+ServiceName)
 	if err != nil {
 		log.Println(err)
 	}
@@ -94,8 +93,7 @@ func stopConsulTemplate(dockerCli *dockerClient.Client) {
 
 	ctx := context.Background()
 	args := filters.NewArgs(
-		filters.Arg("label", "com.opencopilot.consul-template=LB"),
-		filters.Arg("name", "com.opencopilot.consul-template.LB"),
+		filters.Arg("name", "com.opencopilot.consul-template."+ServiceName),
 	)
 	containers, err := dockerCli.ContainerList(ctx, dockerTypes.ContainerListOptions{
 		Filters: args,
@@ -105,8 +103,8 @@ func stopConsulTemplate(dockerCli *dockerClient.Client) {
 
 	}
 	for _, container := range containers {
-		dockerCli.ContainerKill(ctx, container.ID, "SIGTERM")
-		// dockerCli.ContainerStop(ctx, container.ID, nil)
+		dockerCli.ContainerKill(ctx, container.ID, "SIGTINT")
+		dockerCli.ContainerStop(ctx, container.ID, nil)
 		log.Printf("stopping container with ID: %s\n", container.ID[:10])
 	}
 }

@@ -1,15 +1,35 @@
+{{ scratch.Set "kv_config_prefix" (print "instances/" (env "INSTANCE_ID") "/services/lb-haproxy/") -}}
+{{ scratch.Set "global_maxconn" (keyOrDefault (print (scratch.Get "kv_config_prefix") "maxconn") "") -}}
+{{ scratch.Set "default_timeout_connect" (keyOrDefault (print (scratch.Get "kv_config_prefix") "default_timeouts/connect") "5000ms") -}}
+{{ scratch.Set "default_timeout_client" (keyOrDefault (print (scratch.Get "kv_config_prefix") "default_timeouts/client") "5000ms") -}}
+{{ scratch.Set "default_timeout_server" (keyOrDefault (print (scratch.Get "kv_config_prefix") "default_timeouts/server") "5000ms") -}}
 global
     daemon
-    maxconn {{key (print "instances/" (env "INSTANCE_ID") "/services/LB/maxconn")}}
+    {{- if (scratch.Get "global_maxconn")}}
+    maxconn {{scratch.Get "global_maxconn"}}
+    {{else}}
+    {{end -}}
+    ssl-default-bind-options no-sslv3 no-tls-tickets force-tlsv12
+    ssl-default-bind-ciphers AES128+EECDH:AES128+EDH
 
 defaults
     mode http
-    option httplog
-    log global
     default_backend backends
-    timeout connect 5000ms
-    timeout client 50000ms
-    timeout server 50000ms
+    timeout connect {{scratch.Get "default_timeout_connect"}}
+    timeout client {{scratch.Get "default_timeout_client"}}
+    timeout server {{scratch.Get "default_timeout_server"}}
+
+frontend stats
+    bind 127.0.0.1:80
+    default_backend stats
+
+backend stats
+    stats enable
+    stats hide-version
+    stats refresh 30s
+    stats show-node
+    stats auth admin:password
+    stats uri  /haproxy?stats
 
 frontend www
     bind *:80
@@ -20,11 +40,4 @@ backend backends
     mode http
     balance roundrobin
     {{range (ls (print "instances/" (env "INSTANCE_ID") "/services/LB/backends"))}}
-    server {{.Key}} {{.Value}}:80 check{{end}}
-
-    stats enable
-    stats hide-version
-    stats refresh 30s
-    stats show-node
-    stats auth admin:password
-    stats uri  /haproxy?stats
+    server {{.Key}} {{.Value}} check{{end}}

@@ -23,6 +23,8 @@ var (
 	InstanceID = os.Getenv("INSTANCE_ID")
 	// ConsulAddr is where consul-template can reach consul
 	ConsulAddr = os.Getenv("CONSUL_ADDR")
+	// ServiceName is the name of the service
+	ServiceName = "lb-haproxy"
 )
 
 func copyFile(src, dest string) error {
@@ -50,15 +52,15 @@ func ensureConfigDirectory() {
 	if ConfigDir == "" {
 		ConfigDir = "/etc/opencopilot"
 	}
-	confPath := filepath.Join(ConfigDir, "/services/LB")
+	confPath := filepath.Join(ConfigDir, "/services/", ServiceName)
 	log.Printf("ensuring the configuration path exists: %s", confPath)
 	err := os.MkdirAll(confPath, os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	configFilePath := filepath.Join(ConfigDir, "/services/LB/haproxy.cfg")
-	configTemplateFilePath := filepath.Join(ConfigDir, "/services/LB/haproxy.ctmpl")
+	configFilePath := filepath.Join(ConfigDir, "/services/", ServiceName, "/haproxy.cfg")
+	configTemplateFilePath := filepath.Join(ConfigDir, "/services/", ServiceName, "/haproxy.ctmpl")
 
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) { // if config doesn't exist, add the default
 		err := copyFile("./haproxy.cfg", configFilePath)

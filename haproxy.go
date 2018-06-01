@@ -26,23 +26,22 @@ func ensureService(dockerCli *dockerClient.Client, quit chan struct{}) {
 }
 
 func startService(dockerCli *dockerClient.Client) {
-	alreadyRunning, containerID, err := isContainerRunning(dockerCli, "com.opencopilot.service.LB")
+	alreadyRunning, _, err := isContainerRunning(dockerCli, "com.opencopilot.service."+ServiceName)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if alreadyRunning {
-		log.Println("HAProxy already running")
-		waitForContainerStop(dockerCli, *containerID)
-		return
+		log.Println("HAProxy already running, stopping")
+		stopService(dockerCli)
 	}
 	log.Println("starting HAProxy")
 
 	ctx := context.Background()
 
 	containerConfig := &container.Config{
-		Image: "haproxy:latest",
+		Image: "haproxy:1.8.9",
 		Labels: map[string]string{
-			"com.opencopilot.service": "LB",
+			"com.opencopilot.service." + ServiceName: "haproxy",
 		},
 		ExposedPorts: nat.PortSet{
 			"80/tcp": struct{}{},
@@ -62,7 +61,7 @@ func startService(dockerCli *dockerClient.Client) {
 		// RestartPolicy: container.RestartPolicy{Name: "always"},
 		AutoRemove: true,
 		Binds: []string{
-			filepath.Join(ConfigDir, "/services/LB") + ":/usr/local/etc/haproxy",
+			filepath.Join(ConfigDir, "/services/", ServiceName) + ":/usr/local/etc/haproxy",
 		},
 		PortBindings: nat.PortMap{
 			"80/tcp": []nat.PortBinding{
@@ -70,7 +69,7 @@ func startService(dockerCli *dockerClient.Client) {
 			},
 		},
 	}
-	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.service.LB")
+	res, err := dockerCli.ContainerCreate(ctx, containerConfig, hostConfig, nil, "com.opencopilot.service."+ServiceName)
 	if err != nil {
 		log.Println(err)
 	}
@@ -90,8 +89,7 @@ func stopService(dockerCli *dockerClient.Client) {
 
 	ctx := context.Background()
 	args := filters.NewArgs(
-		filters.Arg("label", "com.opencopilot.service=LB"),
-		filters.Arg("name", "com.opencopilot.service.LB"),
+		filters.Arg("name", "com.opencopilot.service."+ServiceName),
 	)
 	containers, err := dockerCli.ContainerList(ctx, dockerTypes.ContainerListOptions{
 		Filters: args,
@@ -107,13 +105,13 @@ func stopService(dockerCli *dockerClient.Client) {
 	}
 }
 
-func configureService(dockerCli *dockerClient.Client, configString string) {
-	log.Println("configuring LB")
+func configureService(dockerCli *dockerClient.Client) {
+	log.Println("configuring " + ServiceName)
 	// Go find the docker container running the service and send a SIGHUP to have it reload the config
 	ctx := context.Background()
 	args := filters.NewArgs(
-		filters.Arg("label", "com.opencopilot.service=LB"),
-		filters.Arg("name", "com.opencopilot.service.LB"),
+		filters.Arg("label", "com.opencopilot.service="+ServiceName),
+		filters.Arg("name", "com.opencopilot.service."+ServiceName),
 	)
 	containers, err := dockerCli.ContainerList(ctx, dockerTypes.ContainerListOptions{
 		Filters: args,
