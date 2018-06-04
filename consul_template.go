@@ -32,7 +32,7 @@ func startConsulTemplate(dockerCli *dockerClient.Client) {
 	}
 	if alreadyRunning {
 		log.Println("consul-template already running, stopping")
-		startConsulTemplate(dockerCli)
+		stopConsulTemplate(dockerCli)
 	}
 
 	ctx := context.Background()

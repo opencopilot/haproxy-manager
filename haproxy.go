@@ -44,7 +44,8 @@ func startService(dockerCli *dockerClient.Client) {
 			"com.opencopilot.service." + ServiceName: "haproxy",
 		},
 		ExposedPorts: nat.PortSet{
-			"80/tcp": struct{}{},
+			"80/tcp":   struct{}{},
+			"8080/tcp": struct{}{},
 		},
 	}
 
@@ -66,6 +67,9 @@ func startService(dockerCli *dockerClient.Client) {
 		PortBindings: nat.PortMap{
 			"80/tcp": []nat.PortBinding{
 				{HostIP: "0.0.0.0", HostPort: "80"},
+			},
+			"8080/tcp": []nat.PortBinding{
+				{HostIP: "127.0.0.1", HostPort: "8080"},
 			},
 		},
 	}

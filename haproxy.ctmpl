@@ -19,11 +19,8 @@ defaults
     timeout client {{scratch.Get "default_timeout_client"}}
     timeout server {{scratch.Get "default_timeout_server"}}
 
-frontend stats
-    bind 127.0.0.1:80
-    default_backend stats
-
-backend stats
+listen stats
+    bind 127.0.0.1:8080
     stats enable
     stats hide-version
     stats refresh 30s
@@ -39,5 +36,5 @@ frontend www
 backend backends
     mode http
     balance roundrobin
-    {{range (ls (print "instances/" (env "INSTANCE_ID") "/services/LB/backends"))}}
+    {{range (ls (print (scratch.Get "kv_config_prefix") "backends"))}}
     server {{.Key}} {{.Value}} check{{end}}
