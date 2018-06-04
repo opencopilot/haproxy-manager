@@ -47,7 +47,6 @@ func startConsulTemplate(dockerCli *dockerClient.Client) {
 		Env: []string{
 			"CONFIG_DIR=" + ConfigDir,
 			"INSTANCE_ID=" + InstanceID,
-			"CONSUL_ADDR=" + ConsulAddr,
 		},
 		Cmd: strslice.StrSlice{
 			"-template",
