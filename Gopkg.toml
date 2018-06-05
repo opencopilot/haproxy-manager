@@ -37,10 +37,6 @@
   version = "0.3.0"
 
 [[constraint]]
-  name = "github.com/fsnotify/fsnotify"
-  version = "1.4.7"
-
-[[constraint]]
   branch = "master"
   name = "github.com/golang/protobuf"
 

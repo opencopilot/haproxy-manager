@@ -22,7 +22,7 @@ var (
 	// InstanceID is the instance id of this device
 	InstanceID = os.Getenv("INSTANCE_ID")
 	// ConsulAddr is where consul-template can reach consul
-	ConsulAddr = os.Getenv("CONSUL_ADDR")
+	ConsulAddr = os.Getenv("CONSUL_ADDRESS")
 	// ServiceName is the name of the service
 	ServiceName = "lb-haproxy"
 )
@@ -140,7 +140,8 @@ func main() {
 	log.Println("starting HAProxy Manager gRPC server")
 	go startServer(dockerCli)
 
-	go watchConfigFile(dockerCli)
+	// go pollConfig(dockerCli)
+	go watchConfig(dockerCli)
 
 	func() {
 		<-sigs

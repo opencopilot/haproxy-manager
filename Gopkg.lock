@@ -57,12 +57,6 @@
   version = "v0.3.3"
 
 [[projects]]
-  name = "github.com/fsnotify/fsnotify"
-  packages = ["."]
-  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
-  version = "v1.4.7"
-
-[[projects]]
   name = "github.com/gogo/protobuf"
   packages = ["proto"]
   revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
@@ -119,6 +113,12 @@
   version = "v0.8.0"
 
 [[projects]]
+  name = "github.com/subgraph/inotify"
+  packages = ["."]
+  revision = "69301be73134c8f50ebb79d63602c87a2dc3b76c"
+  version = "v0.0.1"
+
+[[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
   revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
@@ -163,10 +163,7 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = [
-    "unix",
-    "windows"
-  ]
+  packages = ["windows"]
   revision = "c11f84a56e43e20a78cee75a7c034031ecf57d1f"
 
 [[projects]]
@@ -232,6 +229,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "983e33ae7c86b8658756703bfe005fd4a09d2f36c6ab2bb56d4a9389026d9923"
+  inputs-digest = "97554e4fd6d28873fecea07b8bbfc577c05ae24f461bee8043ce19c27891fcb8"
   solver-name = "gps-cdcl"
   solver-version = 1
