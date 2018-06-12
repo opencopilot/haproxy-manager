@@ -45,7 +45,7 @@ func watchConfig(dockerCli *dockerClient.Client) {
 	for {
 		select {
 		case ev := <-watcher.Event:
-			// log.Println("event:", ev, ev.Mask)
+			log.Println("event:", ev, ev.Mask)
 			if ev.Mask == inotify.IN_MODIFY {
 				configureService(dockerCli)
 			}
