@@ -1,2 +1,4 @@
 cmd/
 manager/*.go
+
+*.dev.sh

@@ -25,7 +25,6 @@ listen stats
     stats hide-version
     stats refresh 30s
     stats show-node
-    stats auth admin:password
     stats uri  /haproxy?stats
 
 frontend www
